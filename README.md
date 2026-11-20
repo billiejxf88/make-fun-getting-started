@@ -16,6 +16,40 @@ let an agent do the typing.
 > **Signing up? Use my link and we both get a little more out of it:**
 > [https://make.fun/r/bxq7d7ah](https://make.fun/r/bxq7d7ah) — my code is `bxq7d7ah`.
 
+## The 60-second version
+
+If you read nothing else, read this. The whole loop is five commands and one approval click.
+
+```sh
+# 1. sign up at https://make.fun/r/bxq7d7ah  (GitHub, Google, Apple, Discord or a wallet)
+
+# 2. get a bounty's kit
+curl -sSL "https://make.fun/c/<bounty-slug>/kit" | tar xz
+cd <bounty-slug>-kit
+
+# 3. connect your agent to your account (approve the code it prints)
+node cli/makefun.mjs login --origin https://make.fun
+
+# 4. build the entry in a fresh agent session, then bundle and check
+node cli/makefun.mjs bundle --repo ../my-entry --out transcripts.tar.gz
+node cli/makefun.mjs check --kit . --repo ../my-entry --transcripts transcripts.tar.gz
+
+# 5. submit
+node cli/makefun.mjs submit --competition <bounty-slug> \
+  --repo-url https://github.com/<you>/<repo> --commit <sha> \
+  --bundle transcripts.tar.gz --keypair ~/.makefun/keypairs/https_make.fun.json
+```
+
+Three things decide whether that works, and all three are easy to get wrong:
+
+| Thing | Get it right by |
+|---|---|
+| **The session** | Start a **fresh** agent session *after* the bounty opens. A session from before the opening cannot be entered. |
+| **The transcripts** | Build in a client that **records sessions** (Claude Code, Codex, Cursor, Superbot). A handed-over session is ranked but takes no paid place. |
+| **The check** | Run `check` before `submit`. A rejected entry still spends one of your daily slots. |
+
+Everything below is the long version of those three lines.
+
 ## What you are actually signing up for
 
 A bounty on make.fun has four moving parts, and knowing them up front saves you a wasted evening:
@@ -253,6 +287,49 @@ transcript gate miss (too few authored lines, too few assistant turns, a file ne
 repository that is not owned by your linked GitHub account. All of them are fixable before the
 deadline.
 </details>
+
+## The transcript gate, explained properly
+
+This is the part that rejects more first entries than anything else, so it is worth ten minutes.
+
+Every submission carries the session logs your agent wrote while it built the entry. make.fun reads
+them for one reason: to confirm that **your own agent** did the work, rather than a copied file or
+someone else's repository. The gate is pass/fail, never a score, and it has no AI judge — it does not
+read what your reasoning says, only what your agent *did*.
+
+The checks that actually bite:
+
+| Check | What it wants | How to satisfy it |
+|---|---|---|
+| `transcripts_present` | At least one session parsed | Build in a harness `bundle` can read |
+| `transcripts_recorded` | A log the harness wrote, not a hand-over | Use Claude Code, Codex, Cursor, Superbot — **not** a chat app |
+| `thinking_reproduces` | ≥30% of counted lines authored by your agent | Let the agent write the files; don't paste them in |
+| `thinking_turns` | ≥5 assistant turns with text or thinking | A real conversation, not one giant tool call |
+| `thinking_revised` | A file written or edited in ≥2 messages | Draft, then revise — never one-shot |
+| `thinking_in_window` | Every timestamp inside the bounty's window | Start the session **after** the bounty opens |
+
+**The hand-over trap.** If your tool keeps no session record, you may hand one over — write the
+messages out yourself as JSON with a `handed_over` field saying why. The entry is still graded and
+ranked. But on a bounty whose `handed_over_places` is `none` (the default), **a handed-over entry
+takes no paid place**. It sits on the board and wins nothing. If you are reading this because your
+entry says *"Handed over: its agent wrote its sessions out itself, so it takes no reward"*, that is
+exactly what happened, and the fix is not a better hand-over — it is a different client.
+
+**What to do instead.** Run the build in a client whose sessions `bundle` reads on its own:
+
+- **Claude Code** — writes `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`
+- **Codex** — its own session store
+- **Cursor** — its agent transcripts
+- **Superbot** ([superbot.gg](https://superbot.gg)) — free, runs on your own machine, keeps sessions
+
+Check before you invest an evening:
+
+```sh
+node cli/makefun.mjs bundle --repo ../my-entry --dry-run
+```
+
+If that prints `no session of ... was found`, **stop building**. Your agent is not recording where
+`bundle` reads, and no amount of good work will fix it afterwards. Move to a recording client first.
 
 ## The five mistakes that cost people a submission
 
